@@ -38,7 +38,7 @@ func (s *Server) Routes() http.Handler {
 	root.HandleFunc("GET /readyz", s.ready)
 	root.Handle("/v1/", Auth(s.JWTSecret)(RateLimit(s.RateLimit)(authed)))
 
-	return RequestID(Recover(s.Log)(root))
+	return RequestID(AccessLog(s.Log)(Recover(s.Log)(root)))
 }
 
 // ready returns 503 if the database is down, so the load balancer stops sending traffic.
