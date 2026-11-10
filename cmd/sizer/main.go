@@ -1,53 +1,74 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/Likithaa07/sizeright/internal/api"
 	"github.com/Likithaa07/sizeright/internal/sizing"
+	"github.com/Likithaa07/sizeright/internal/store"
 )
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+// getenv reads an environment variable with a default.
+func getenv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 func main() {
-	rules, err := sizing.LoadRules("rules/v1.yaml")
-	if err != nil {
-		log.Fatal(err)
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if err := run(log); err != nil {
+		log.Error("server stopped", "err", err)
+		os.Exit(1)
 	}
+}
 
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	})
-
-	mux.HandleFunc("POST /v1/sizings", func(w http.ResponseWriter, r *http.Request) {
-		var sub sizing.Subscription
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)) // max 1 MB
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&sub); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
-			return
-		}
-		if errs := sub.Validate(rules); len(errs) > 0 {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"errors": errs})
-			return
-		}
-		writeJSON(w, http.StatusCreated, sizing.Size(sub, rules))
-	})
+func run(log *slog.Logger) error {
+	rules, err := sizing.LoadRules(getenv("RULES_PATH", "rules/v1.yaml"))
+	if err != nil {
+		return err
+	}
+	secret := os.Getenv("JWT_SECRET")
+	if len(secret) < 32 {
+		return errors.New("JWT_SECRET must be set and at least 32 characters")
+	}
+	ctx := context.Background()
+	st, err := store.New(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return err
+	}
+	defer st.Close()
 
 	srv := &http.Server{
-		Addr:         ":8080",
-		Handler:      mux,
-		ReadTimeout:  5 * time.Second, // timeouts protect against slow clients
+		Addr:         ":" + getenv("PORT", "8080"),
+		Handler:      (&api.Server{Rules: rules, Store: st, JWTSecret: []byte(secret), Log: log}).Routes(),
+		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
-	log.Println("listening on :8080")
-	log.Fatal(srv.ListenAndServe())
+
+	// Graceful shutdown: on Ctrl+C or SIGTERM, finish in-flight requests first.
+	go func() {
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+		<-stop
+		log.Info("shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+	}()
+
+	log.Info("listening", "addr", srv.Addr, "rules_version", rules.Version)
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
