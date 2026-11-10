@@ -11,6 +11,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// opTimeout caps every cache call. The cache gets its own small time budget,
+// so even if Redis is down it can't eat the request's 2s budget meant for Postgres.
+const opTimeout = 100 * time.Millisecond
+
 type Cache struct {
 	rdb *redis.Client
 	ttl time.Duration
@@ -23,6 +27,7 @@ func New(addr string) *Cache {
 			DialTimeout:  500 * time.Millisecond, // the cache is optional: never wait long for it
 			ReadTimeout:  200 * time.Millisecond,
 			WriteTimeout: 200 * time.Millisecond,
+			MaxRetries:   -1, // no retries: a slow cache must never slow down a request
 		}),
 		ttl: 24 * time.Hour,
 	}
@@ -42,6 +47,8 @@ func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
 	if c == nil {
 		return nil, false
 	}
+	ctx, cancel := context.WithTimeout(ctx, opTimeout)
+	defer cancel()
 	b, err := c.rdb.Get(ctx, key).Bytes()
 	if err != nil {
 		return nil, false
@@ -53,5 +60,7 @@ func (c *Cache) Set(ctx context.Context, key string, val []byte) {
 	if c == nil {
 		return
 	}
+	ctx, cancel := context.WithTimeout(ctx, opTimeout)
+	defer cancel()
 	_ = c.rdb.Set(ctx, key, val, c.ttl).Err()
 }
