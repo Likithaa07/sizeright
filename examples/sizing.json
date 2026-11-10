@@ -1,0 +1,1 @@
+{"customer_id":"acme","cloud":"aws","region":"ap-southeast-2","ingest_gb_per_day":500,"retention_days":90,"search_profile":"moderate","concurrent_users":40,"premium_apps":["enterprise_security"],"smartstore":true,"high_availability":true}
