@@ -1,0 +1,20 @@
+version: v1
+
+# GB/day one indexer can handle, by search profile
+indexer_capacity_gb_per_day:
+  light: 300
+  moderate: 200
+  heavy: 150
+  enterprise_security: 100
+
+min_indexers_ha: 3        # survive losing a node
+replication_factor: 3     # copies of raw data
+search_factor: 2          # searchable copies
+rawdata_ratio: 0.15       # compressed raw data = 15% of ingest
+tsidx_ratio: 0.35         # index files = 35% of ingest
+contingency: 1.15         # 15% extra headroom
+smartstore_cache_days: 30 # days kept on local disk with SmartStore
+shc_members_ha: 3         # search head cluster size for HA
+users_per_search_head: 25 # practice assumption
+max_ingest_gb_per_day: 50000
+max_retention_days: 3650
