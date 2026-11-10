@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/Likithaa07/sizeright/internal/api"
+	"github.com/Likithaa07/sizeright/internal/cache"
 	"github.com/Likithaa07/sizeright/internal/sizing"
 	"github.com/Likithaa07/sizeright/internal/store"
 )
@@ -47,9 +49,19 @@ func run(log *slog.Logger) error {
 	}
 	defer st.Close()
 
+	rateLimit, err := strconv.Atoi(getenv("RATE_LIMIT_PER_MIN", "120"))
+	if err != nil {
+		return errors.New("RATE_LIMIT_PER_MIN must be a number")
+	}
+	var c *cache.Cache
+	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
+		c = cache.New(addr)
+	}
+
 	srv := &http.Server{
-		Addr:         ":" + getenv("PORT", "8080"),
-		Handler:      (&api.Server{Rules: rules, Store: st, JWTSecret: []byte(secret), Log: log}).Routes(),
+		Addr: ":" + getenv("PORT", "8080"),
+		Handler: (&api.Server{Rules: rules, Store: st, JWTSecret: []byte(secret), Log: log,
+			Cache: c, RateLimit: rateLimit}).Routes(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
