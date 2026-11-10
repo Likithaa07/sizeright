@@ -33,7 +33,7 @@ func TestAuthAndStatusCodes(t *testing.T) {
 	}
 	// Store is nil: these cases must all be rejected before the database is used.
 	srv := (&Server{Rules: rules, JWTSecret: []byte(testSecret),
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}).Routes()
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), RateLimit: 100}).Routes()
 
 	tests := []struct {
 		name, auth, body string
