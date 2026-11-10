@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Likithaa07/sizeright/internal/api"
 	"github.com/Likithaa07/sizeright/internal/cache"
+	"github.com/Likithaa07/sizeright/internal/hec"
 	"github.com/Likithaa07/sizeright/internal/sizing"
 	"github.com/Likithaa07/sizeright/internal/store"
 )
@@ -26,7 +28,12 @@ func getenv(key, def string) string {
 }
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// Logs always go to stdout; also to Splunk if HEC_URL is set.
+	var out io.Writer = os.Stdout
+	if url := os.Getenv("HEC_URL"); url != "" {
+		out = io.MultiWriter(os.Stdout, hec.New(url, os.Getenv("HEC_TOKEN"), os.Getenv("HEC_INSECURE") == "true"))
+	}
+	log := slog.New(slog.NewJSONHandler(out, nil))
 	if err := run(log); err != nil {
 		log.Error("server stopped", "err", err)
 		os.Exit(1)
