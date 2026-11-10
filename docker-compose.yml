@@ -3,16 +3,43 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: sizer
-      POSTGRES_PASSWORD: ${DB_PASSWORD}   # read from .env, not hard-coded
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: sizer
     ports:
       - "5433:5432"
     volumes:
-      - dbdata:/var/lib/postgresql/data  # data survives restarts
+      - dbdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sizer"]
       interval: 5s
       retries: 5
+
+  redis:
+    image: redis:7
+
+  migrate:
+    image: migrate/migrate
+    volumes:
+      - ./migrations:/migrations
+    command: ["-path", "/migrations", "-database", "postgres://sizer:${DB_PASSWORD}@db:5432/sizer?sslmode=disable", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://sizer:${DB_PASSWORD}@db:5432/sizer?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_ADDR: redis:6379
+      RATE_LIMIT_PER_MIN: "120"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
 
 volumes:
   dbdata:
