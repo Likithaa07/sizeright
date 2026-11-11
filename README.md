@@ -1,6 +1,7 @@
 # SizeRight — Splunk deployment sizing API
 
-**Live:** https://sizeright.onrender.com/healthz &nbsp;·&nbsp; **Release:** v1.0.0 &nbsp;·&nbsp; **CI:** GitHub Actions ✅
+**Live:** https://sizeright.onrender.com/healthz &nbsp;·&nbsp; **Release:** v1.0.0 &nbsp;·&nbsp; [![CI](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml/badge.svg)](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml)
+
 
 SizeRight turns a customer's Splunk subscription (ingest GB/day, retention, search load, premium apps) into a deployment plan: how many indexers and search heads are needed, how much storage is required, and why. It then exports Terraform inputs so the infrastructure can be provisioned automatically.
 
