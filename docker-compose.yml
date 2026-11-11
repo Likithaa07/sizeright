@@ -31,7 +31,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgres://sizer:${DB_PASSWORD}@db:5432/sizer?sslmode=disable
+      DATABASE_URL: postgres://sizer:${DB_PASSWORD}@db:5432/sizer?sslmode=disable&pool_max_conns=50
       JWT_SECRET: ${JWT_SECRET}
       REDIS_ADDR: redis:6379
       RATE_LIMIT_PER_MIN: "120"
