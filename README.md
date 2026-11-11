@@ -1,6 +1,6 @@
 # SizeRight — Splunk deployment sizing API
 
-**Live:** https://sizeright.onrender.com/healthz &nbsp;·&nbsp; **Release:** v1.0.0 &nbsp;·&nbsp; [![CI](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml/badge.svg)](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml)
+**Live:** https://sizeright.onrender.com/healthz &nbsp;·&nbsp; **Release:** [v1.1.0](https://github.com/Likithaa07/sizeright/releases) &nbsp;·&nbsp; [![CI](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml/badge.svg)](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml)
 
 
 SizeRight turns a customer's Splunk subscription (ingest GB/day, retention, search load, premium apps) into a deployment plan: how many indexers and search heads are needed, how much storage is required, and why. It then exports Terraform inputs so the infrastructure can be provisioned automatically.
@@ -33,8 +33,12 @@ flowchart LR
 
 | | |
 |---|---|
-| Load test (k6, 400 concurrent users) | **854,789 requests, ~6,300 req/s, 0.00% errors, p95 56 ms** ([details](docs/loadtest.md)) |
+| Load test (k6, 400 concurrent users) | **854,789 requests, ~6,300 req/s, 0.00% errors, p95 56 ms** |
+| Breaking point (ramp to 4,000 users) | **1,040,199 requests, 0% errors**; throughput saturated at ~6,900 req/s and p95 rose to 588 ms |
+| Bottleneck found and fixed | Default DB pool (~10 connections) → `pool_max_conns=50`: **+41% throughput** (7,276 → 10,284 req/s), avg latency −29% at 2,000 users ([details](docs/loadtest.md)) |
 | Test coverage (sizing engine) | 87.9%, golden + property tests |
+| Tests proven to catch mistakes | Changing a sizing rule on purpose fails the golden test (`indexers = 10, want 5`) |
+| Secret scanning proven | A fake API key pushed on a test branch failed CI at the gitleaks step and could not be merged |
 | Chaos drills | DB down ✅ · Redis down (found a bug, fixed) ✅ · bad deploy ✅ ([runbook](docs/runbook.md)) |
 
 ## Splunk observability
@@ -98,5 +102,6 @@ Go 1.27 · net/http · PostgreSQL (pgx) · golang-migrate · Redis · JWT · Doc
 ## Next steps
 
 - Circuit breaker around Redis
+- Run k6 from a separate machine against the deployed API (current numbers are a single-laptop benchmark)
 - Ship production logs to Splunk Cloud
 - `terraform apply` into a real AWS sandbox
