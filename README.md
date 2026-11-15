@@ -1,6 +1,6 @@
 # SizeRight — Splunk deployment sizing API
 
-**Live:** https://sizeright.onrender.com/healthz &nbsp;·&nbsp; **Release:** [v1.1.0](https://github.com/Likithaa07/sizeright/releases) &nbsp;·&nbsp; [![CI](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml/badge.svg)](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml)
+**Live:** https://sizeright.onrender.com/healthz &nbsp;·&nbsp; **Release:** [v1.1.1](https://github.com/Likithaa07/sizeright/releases) &nbsp;·&nbsp; [![CI](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml/badge.svg)](https://github.com/Likithaa07/sizeright/actions/workflows/ci.yml)
 
 
 SizeRight turns a customer's Splunk subscription (ingest GB/day, retention, search load, premium apps) into a deployment plan: how many indexers and search heads are needed, how much storage is required, and why. It then exports Terraform inputs so the infrastructure can be provisioned automatically.
@@ -15,6 +15,8 @@ POST /v1/sizings  {"ingest_gb_per_day":500, "retention_days":90, "premium_apps":
 ```
 
 ![Live on Render](docs/screenshots/live.png)
+
+**Companion project:** [StackWatch](https://github.com/Likithaa07/stackwatch) checks these plans against real usage in Splunk and alerts when a stack drifts out of its plan.
 
 ## Architecture
 
@@ -74,6 +76,18 @@ During the Redis-down drill, every sizing request returned **500** even though t
 | POST | `/v1/sizings` | sizing_engineer, admin | Create a sizing |
 | GET | `/v1/sizings/{id}` | owner or admin | Read a sizing |
 | GET | `/v1/sizings/{id}/terraform` | owner or admin | Download `terraform.tfvars.json` |
+
+## Design decisions
+
+| Decision | Why | Trade-off |
+|---|---|---|
+| Sizing rules in a versioned YAML file (`rules/v1.yaml`) | rules change without code changes; every sizing records its `rules_version` | rule edits still need review, like code |
+| Go, shipped as a distroless non-root image | small, fast, almost no attack surface | no shell in the container for debugging |
+| Migrations as a separate step (`migrate`), not at app start | schema changes are explicit and run once | one more step in compose and Kubernetes (init container) |
+| DB pool sized by a load test (50 connections) | +41% throughput (7,276 to 10,284 req/s), measured not guessed | more Postgres connections per instance |
+| `/healthz` (alive) separate from `/readyz` (DB reachable) | orchestrators restart only truly dead pods and stop routing to unready ones | two endpoints to keep correct |
+| JWT auth and per-client rate limits | protects a public API from abuse | clients must fetch a token first |
+| CI blocks merges on `govulncheck` and `gitleaks` | catches known vulnerabilities and leaked secrets before merge | a new upstream CVE can block unrelated PRs (it caught GO-2026-6859, fixed in v1.1.1) |
 
 ## Run it locally
 
